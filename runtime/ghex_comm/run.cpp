@@ -202,6 +202,9 @@ public: // member types
   using coordinate_type = local_domain::coordinate_type;
   using patterns_type = patterns_t;
   using patterns_ptr_t = std::unique_ptr<patterns_type>;
+  using comm_obj_type =
+      gt::ghex::communication_object<communicator_t, grid_t, domain_id_t>;
+  using comm_obj_ptr_t = std::unique_ptr<comm_obj_type>;
   using domain_vec = std::vector<local_domain>;
   using context_ptr_t = std::unique_ptr<context_t>;
   using thread_token = context_t::thread_token;
@@ -299,10 +302,13 @@ public:
                                         (std::size_t)dom.first()[1],
                                         (std::size_t)dom.first()[2]};
 
+    auto comm_obj = std::make_shared<comm_obj_type>(
+        gt::ghex::make_communication_object<patterns_type>(comm));
+
     auto b_comm_obj_map = std::make_shared<
         std::map<void *, gt::ghex::generic_bulk_communication_object>>();
 
-    auto halo_exchange = [b_comm_obj_map = std::move(b_comm_obj_map), comm,
+    auto halo_exchange = [comm_obj = std::move(comm_obj), b_comm_obj_map = std::move(b_comm_obj_map),/* comm,*/
                           domain = dom,
                           &patterns = *m_patterns](storage_t &storage) mutable {
 #ifdef GTBENCH_BACKEND_GPU
@@ -316,7 +322,7 @@ public:
       if (it == b_comm_obj_map->end()) {
         auto sbco = gt::ghex::bulk_communication_object<
             gt::ghex::structured::rma_range_generator, patterns_type,
-            decltype(field)>(comm);
+            decltype(field)>(*comm_obj);//comm);
         sbco.add_field(patterns(field));
         it = b_comm_obj_map
                  ->insert(
